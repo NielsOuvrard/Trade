@@ -28,12 +28,14 @@ class Bot:
             dollars = self.botState.stacks["USDT"]
             current_closing_price = self.botState.charts["USDT_BTC"].closes[-1]
             affordable = dollars / current_closing_price
-            print(f'My stacks are {dollars}. The current closing price is {current_closing_price}. So I can afford {affordable}', file=sys.stderr)
+            bitcoin = self.botState.stacks["BTC"]
+            print(f'My stacks are {dollars}, bitcoin = {bitcoin}. The current closing price is {current_closing_price}. So I can afford {affordable}', file=sys.stderr)
             if dollars < 100:
                 print("no_moves", flush=True)
+            elif bitcoin > 2.0:
+                print(f'sell USDT_BTC {bitcoin / 5}', flush=True)
             else:
-                print(f'buy USDT_BTC {0.5 * affordable}', file=sys.stderr, flush=True)
-                print(f'buy USDT_BTC {0.5 * affordable}', flush=True)
+                print(f'buy USDT_BTC {0.4 * affordable}', flush=True)
 
 
 class Candle:
