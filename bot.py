@@ -5,6 +5,21 @@ __version__ = "1.0"
 
 import sys
 
+def calculate_bollinger_bands(price, window, thiness):
+    # moving average
+    middle_band = sum(price[-window:]) / window
+
+    # deviation
+    squared_deviations = [(x - middle_band) ** 2 for x in price[-window:]]
+    variance = sum(squared_deviations) / window
+    std_dev = variance ** 0.5
+
+    # upper and lower bands
+    upper_band = middle_band + (thiness * std_dev)
+    lower_band = middle_band - (thiness * std_dev)
+
+    return middle_band, upper_band, lower_band
+
 class Bot:
     def __init__(self):
         self.botState = BotState()
@@ -29,13 +44,25 @@ class Bot:
             current_closing_price = self.botState.charts["USDT_BTC"].closes[-1]
             affordable = dollars / current_closing_price
             bitcoin = self.botState.stacks["BTC"]
+
+            """ implement bollinger band """
+            price = self.botState.charts["USDT_BTC"].closes
+            middle_band, upper_band, lower_band = calculate_bollinger_bands(price, 20, 2)
             print(f'My stacks are {dollars}, bitcoin = {bitcoin}. The current closing price is {current_closing_price}. So I can afford {affordable}', file=sys.stderr)
-            if dollars < 100:
+            print(f'upper_band / price / lower_band = {lower_band}/{price[-1]}/{upper_band}', file=sys.stderr)
+            if dollars < 10 and bitcoin < 0.0001:
+                print("no_moves", file=sys.stderr)
                 print("no_moves", flush=True)
-            elif bitcoin > 2.0:
+            if price[-1] > upper_band:
+                print(f'sell USDT_BTC {bitcoin / 5}', file=sys.stderr)
                 print(f'sell USDT_BTC {bitcoin / 5}', flush=True)
-            else:
+            elif price[-1] < lower_band:
+                print(f'buy USDT_BTC {0.4 * affordable}', file=sys.stderr)
                 print(f'buy USDT_BTC {0.4 * affordable}', flush=True)
+            else:
+                print("no_moves", file=sys.stderr)
+                print("no_moves", flush=True)
+
 
 
 class Candle:
