@@ -20,6 +20,41 @@ def calculate_bollinger_bands(price, window, thiness):
 
     return middle_band, upper_band, lower_band
 
+def calculate_rsi(data, window_size):
+    # the price differences
+    deltas = [data[i] - data[i - 1] for i in range(1, len(data))]
+
+    # Separate positive and negative price differences
+    positive_deltas = [delta for delta in deltas if delta >= 0]
+    negative_deltas = [abs(delta) for delta in deltas if delta < 0]
+
+    # the average gains and losses
+    # array[:index] = array[0], array[1], ..., array[index - 1]
+    avg_gain = sum(positive_deltas[:window_size]) / window_size
+    avg_loss = sum(negative_deltas[:window_size]) / window_size
+
+    # the initial RSI value
+    rs = avg_gain / avg_loss if avg_loss != 0 else 0
+    rsi = 100 - (100 / (1 + rs))
+
+    # the RSI for the remaining data points
+    for i in range(window_size, len(data)):
+        delta = data[i] - data[i - 1]
+
+        # Update the average gains and losses using smoothing
+        if delta >= 0:
+            avg_gain = ((window_size - 1) * avg_gain + delta) / window_size
+            avg_loss = ((window_size - 1) * avg_loss) / window_size
+        else:
+            avg_gain = ((window_size - 1) * avg_gain) / window_size
+            avg_loss = ((window_size - 1) * avg_loss + abs(delta)) / window_size
+
+        # Update the RSI value
+        rs = avg_gain / avg_loss if avg_loss != 0 else 0
+        rsi = 100 - (100 / (1 + rs))
+
+    return rsi
+
 class Bot:
     def __init__(self):
         self.botState = BotState()
@@ -30,6 +65,9 @@ class Bot:
             if len(reading) == 0:
                 continue
             self.parse(reading)
+
+# RSI
+# MACD ?
 
     def parse(self, info: str):
         tmp = info.split(" ")
@@ -44,24 +82,40 @@ class Bot:
             current_closing_price = self.botState.charts["USDT_BTC"].closes[-1]
             affordable = dollars / current_closing_price
             bitcoin = self.botState.stacks["BTC"]
+            price = self.botState.charts["USDT_BTC"].closes
+
+
+            if dollars < 10 and bitcoin < 0.0001:
+                print("no_moves because we are broke", file=sys.stderr)
+                print("no_moves", flush=True)
 
             """ implement bollinger band """
-            price = self.botState.charts["USDT_BTC"].closes
             middle_band, upper_band, lower_band = calculate_bollinger_bands(price, 20, 2)
-            print(f'My stacks are {dollars}, bitcoin = {bitcoin}. The current closing price is {current_closing_price}. So I can afford {affordable}', file=sys.stderr)
-            print(f'upper_band / price / lower_band = {lower_band}/{price[-1]}/{upper_band}', file=sys.stderr)
-            if dollars < 10 and bitcoin < 0.0001:
-                print("no_moves", file=sys.stderr)
-                print("no_moves", flush=True)
-            if price[-1] > upper_band:
-                print(f'sell USDT_BTC {bitcoin / 5}', file=sys.stderr)
+            # print(f'My stacks are {dollars}, bitcoin = {bitcoin}. The current closing price is {current_closing_price}. So I can afford {affordable} = {0.4 * affordable}', file=sys.stderr)
+            print(f'upper_band / price / lower_band = {round(lower_band)}/{price[-1]}/{round(upper_band)}', file=sys.stderr)
+            if price[-1] > upper_band and bitcoin / 10 > 0.0001:
+                print(f'bollinger band sell USDT_BTC {bitcoin / 10}', file=sys.stderr)
+                print(f'sell USDT_BTC {bitcoin / 10}', flush=True)
+                return
+            elif price[-1] < lower_band and 0.2 * affordable > 0.0001:
+                print(f'bollinger band buy USDT_BTC {0.2 * affordable}', file=sys.stderr)
+                print(f'buy USDT_BTC {0.2 * affordable}', flush=True)
+                return
+
+            """ implement RSI """
+            rsi = calculate_rsi(price, 14)
+            # print(f'My stacks are {dollars}, bitcoin = {bitcoin}. The current closing price is {current_closing_price}. So I can afford {affordable} = {0.4 * affordable}', file=sys.stderr)
+            print(f'rsi = {rsi}', file=sys.stderr)
+            if rsi > 70 and bitcoin / 5 > 0.0001:
+                print(f'RSI sell USDT_BTC {bitcoin / 5}', file=sys.stderr)
                 print(f'sell USDT_BTC {bitcoin / 5}', flush=True)
-            elif price[-1] < lower_band:
-                print(f'buy USDT_BTC {0.4 * affordable}', file=sys.stderr)
+                return
+            elif rsi < 30 and 0.4 * affordable > 0.0001:
+                print(f'RSI buy USDT_BTC {0.4 * affordable}', file=sys.stderr)
                 print(f'buy USDT_BTC {0.4 * affordable}', flush=True)
-            else:
-                print("no_moves", file=sys.stderr)
-                print("no_moves", flush=True)
+                return
+            print("no_moves because rsi and bollinger band are not triggered", file=sys.stderr)
+            print("no_moves", flush=True)
 
 
 
