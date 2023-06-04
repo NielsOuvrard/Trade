@@ -8,6 +8,8 @@ import sys
 lock_moves = 0
 last_bb = [0, 0]
 
+benefice_only = False
+
 # après forte descente, si commence à remonter
 # acheter
 
@@ -89,6 +91,7 @@ class Bot:
     def parse(self, info: str):
         global lock_moves
         global last_bb
+        global benefice_only
         tmp = info.split(" ")
         if tmp[0] == "settings":
             self.botState.update_settings(tmp[1], tmp[2])
@@ -99,12 +102,17 @@ class Bot:
             # This won't work every time, but it works sometimes!
             dollars = self.botState.stacks["USDT"]
             current_closing_price = self.botState.charts["USDT_BTC"].closes[-1]
-            affordable = dollars / current_closing_price
             bitcoin = self.botState.stacks["BTC"]
             price = self.botState.charts["USDT_BTC"].closes
             volume = self.botState.charts["USDT_BTC"].volumes
             big_change = False
+            if not benefice_only and dollars > 1050:
+                benefice_only = True
+            if benefice_only:
+                dollars -= 1000
 
+
+            affordable = dollars / current_closing_price
             """ implement bollinger band volume """
             v_middle_band, v_upper_band, v_lower_band = calculate_bollinger_bands(volume, 20, 2)
             if price[-1] > v_upper_band or price[-1] < v_lower_band:
@@ -137,24 +145,19 @@ class Bot:
                 print(f'sell USDT_BTC {bitcoin}', flush=True)
                 lock_moves = LOCK_CYCLES
                 return
-            # elif big_change and affordable > 0.0001 and price[-1] < price[-2] and price[-2] < price[-3]:
-            #     print(f'bollinger band buy USDT_BTC {affordable}', file=sys.stderr)
-            #     print(f'buy USDT_BTC {affordable}', flush=True)
-            #     return
+            elif big_change and affordable > 0.0001 and price[-1] < price[-2]:
+                print(f'bollinger band buy USDT_BTC {affordable}', file=sys.stderr)
+                print(f'buy USDT_BTC {affordable}', flush=True)
+                lock_moves = LOCK_CYCLES
+                return
             """ implement bollinger band """
             middle_band, upper_band, lower_band = calculate_bollinger_bands(price, 20, 2)
             # print(f'My stacks are {dollars}, bitcoin = {bitcoin}. The current closing price is {current_closing_price}. So I can afford {affordable} = {0.4 * affordable}', file=sys.stderr)
             print(f'upper_band / price / lower_band = {round(lower_band)}/{price[-1]}/{round(upper_band)}', file=sys.stderr)
             if price[-1] > upper_band and bitcoin / SELL_BB > 0.0001:
                 last_bb.append(INCREASE)
-                # print(f'bollinger band sell USDT_BTC {bitcoin / SELL_BB}', file=sys.stderr)
-                # print(f'sell USDT_BTC {bitcoin / SELL_BB}', flush=True)
-                # return
             elif price[-1] < lower_band and BUY_BB * affordable > 0.0001:
                 last_bb.append(DECREASE)
-                # print(f'bollinger band buy USDT_BTC {BUY_BB * affordable}', file=sys.stderr)
-                # print(f'buy USDT_BTC {BUY_BB * affordable}', flush=True)
-                # return
             else:
                 last_bb.append(NOTHING)
 
